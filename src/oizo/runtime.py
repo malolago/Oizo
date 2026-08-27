@@ -9,6 +9,7 @@ from dishka.exceptions import GraphMissingFactoryError
 # from http_router import Router, NotFoundError
 
 from starlette.applications import Starlette
+from starlette.responses import Response
 from starlette.routing import Router
 from starlette.requests import Request
 
@@ -23,6 +24,7 @@ from .modules import Module
 
 class InternalProvider(Provider):
     request = from_context(Request, scope=Scope.REQUEST)
+    response = from_context(Response, scope=Scope.REQUEST)
     app = from_context(Starlette, scope=Scope.APP)
 
 
@@ -80,9 +82,12 @@ class App:
             if self.__container is None:
                 raise RuntimeError("Application container has not been initialized.")
 
+            response = Response()
+            response.raw_headers.clear()
+
             # Use self.__container directly
             with self.__container(
-                context={Request: request},
+                context={Request: request, Response: response},
             ) as request_container:
 
                 dependencies: dict[str, Any] = {}
@@ -112,6 +117,24 @@ class App:
 
                 if inspect.isawaitable(result):
                     result = await result
+
+                if result is None:
+                    result = response
+                elif isinstance(result, Response):
+                    if response.status_code != 200:
+                        result.status_code = response.status_code
+                    if response.background is not None:
+                        result.background = response.background
+
+                    result_header_names = {
+                        name.lower() for name, _ in result.raw_headers
+                    }
+                    result.raw_headers.extend(
+                        header
+                        for header in response.raw_headers
+                        if header[0].lower() == b"set-cookie"
+                        or header[0].lower() not in result_header_names
+                    )
 
                 return result
 
