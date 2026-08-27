@@ -1,9 +1,9 @@
-from .controllers import Route
+from .controllers import _Route
 
 
 def get(path=""):
     def decorator(fn):
-        fn.__route__ = Route(
+        fn.__route__ = _Route(
             method="GET",
             path=path,
             handler=fn,
@@ -15,7 +15,7 @@ def get(path=""):
 
 def post(path=""):
     def decorator(fn):
-        fn.__route__ = Route(
+        fn.__route__ = _Route(
             method="POST",
             path=path,
             handler=fn,

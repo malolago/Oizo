@@ -7,10 +7,16 @@ ROUTE_META = "__route__"
 
 
 @dataclass
-class Route:
+class _Route:
     method: str
     path: str
     handler: Callable
+
+
+@dataclass
+class _Mount:
+    prefix: str
+    routes: list[_Route]
 
 
 class Controller:
@@ -27,18 +33,18 @@ class Controller:
 
     @classmethod
     def get_routes(cls):
-        routes = []
+        routes: list[_Route] = []
 
         for _, method in inspect.getmembers(cls, inspect.isfunction):
             route = getattr(method, ROUTE_META, None)
 
             if route:
                 routes.append(
-                    Route(
+                    _Route(
                         method=route.method,
-                        path=cls.prefix + route.path,
+                        path=route.path,
                         handler=method,
                     )
                 )
 
-        return routes
+        return _Mount(cls.prefix, routes)

@@ -1,6 +1,6 @@
 import dishka
 import inspect
-from .controllers import Controller, Route
+from .controllers import Controller, _Route, _Mount
 from .providers import Provider
 
 
@@ -46,9 +46,9 @@ class Module:
 
     @classmethod
     def get_routes(cls):
-        routes: list[Route] = []
+        routes: list[_Mount] = []
         for controller in cls.controllers:
-            routes.extend(controller.get_routes())
+            routes.append(controller.get_routes())
 
         return routes
 

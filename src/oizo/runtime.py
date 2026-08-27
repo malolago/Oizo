@@ -10,7 +10,7 @@ from dishka.exceptions import GraphMissingFactoryError
 
 from starlette.applications import Starlette
 from starlette.responses import Response
-from starlette.routing import Router
+from starlette.routing import Mount, Route, Router
 from starlette.requests import Request
 
 from watchfiles import awatch
@@ -55,12 +55,17 @@ class App:
         self.__app.router.routes.clear()
         self.__app.middleware_stack = None
 
-        for route in self.__app_module.get_routes():
-            self.__app.router.add_route(
-                route.path,
-                endpoint=self.auto_inject(route.handler),
-                methods=[route.method],
-            )
+        for mount in self.__app_module.get_routes():
+            routes = []
+            for route in mount.routes:
+                routes.append(
+                    Route(
+                        path=route.path,
+                        endpoint=self.auto_inject(route.handler),
+                        methods=[route.method],
+                    )
+                )
+            self.__app.router.routes.append(Mount(path=mount.prefix, routes=routes))
 
     def auto_inject(
         self,
