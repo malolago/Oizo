@@ -1,4 +1,4 @@
-from controllers import Route
+from .controllers import Route
 
 
 def get(path=""):

@@ -1,5 +1,5 @@
 import inspect
-from typing import Callable
+from collections.abc import Callable
 from dataclasses import dataclass
 
 CONTROLLER_META = "__controller__"
@@ -30,7 +30,7 @@ class Controller:
         routes = []
 
         for _, method in inspect.getmembers(cls, inspect.isfunction):
-            route = getattr(method, "__route__", None)
+            route = getattr(method, ROUTE_META, None)
 
             if route:
                 routes.append(
