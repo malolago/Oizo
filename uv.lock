@@ -54,28 +54,6 @@ wheels = [
 ]
 
 [[package]]
-name = "http-router"
-version = "6.0.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/91/3c/f4fbf57d7a803ebda7b154f8bb9f4f09c8a72bedcec7e8dce48414e29d5b/http_router-6.0.0.tar.gz", hash = "sha256:17d486280081c1f8c04583e37ffb242f02940a083feca26fe4649e11d2150e74", size = 9620, upload-time = "2025-11-06T09:44:19.416Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/d1/60/a8ed37e463353d3aad0a5eaa7754ec5abf0309db21737c4d5d855e3fa07c/http_router-6.0.0-cp313-cp313-macosx_10_13_universal2.whl", hash = "sha256:b50a1b9168fb12d7e1022d6b2257e5451f943fd6162b2b4318c3e3717b5c4d09", size = 435056, upload-time = "2025-11-06T09:43:59.043Z" },
-    { url = "https://files.pythonhosted.org/packages/5f/97/8e41a9ad4817766d360b73b4c02ac93a193a176324817f4b44c71f67c17f/http_router-6.0.0-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:3ddf8004e67d20670d80b514a019111b289e8cc6c46c22d55d74a7466f6e520d", size = 330951, upload-time = "2025-11-06T09:44:00.375Z" },
-    { url = "https://files.pythonhosted.org/packages/a5/17/a5014972167339f8d83f22447fc85e644b454823854d8bc204e24a707097/http_router-6.0.0-cp313-cp313-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:8e5d9d5ee2cdf54d64d66ab2ceefac5ceb04fcfa965e05ef773ddf0ae5d69bca", size = 907820, upload-time = "2025-11-06T09:44:01.275Z" },
-    { url = "https://files.pythonhosted.org/packages/2b/d0/9c7f445a038aed6a37bf52d571a29177f19bac477fce5281acbedcc4e4c4/http_router-6.0.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:9c13f5c7642969db6cf4bbe65e01425a5d9ceead03124f5fa57cbf791d847382", size = 900764, upload-time = "2025-11-06T09:44:02.402Z" },
-    { url = "https://files.pythonhosted.org/packages/e0/3e/3e7f2d2f790fed6bac8cb3c8844f2af7ec5228d0b895d0bf1c57071edba3/http_router-6.0.0-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:2690fa9e043e50e03d8205b7ed00da0316f6bee98e84aa7e9542ead76ea19bc1", size = 877940, upload-time = "2025-11-06T09:44:03.773Z" },
-    { url = "https://files.pythonhosted.org/packages/f6/5f/a0b9b0d6ad23711737856fcc1ea636ab454a6674e65e5a2af36d9054d872/http_router-6.0.0-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:d4fb24b35a4b6a4d7a11687fa4948c8da18e2404bbbc74f6c267d9765aa0d9dd", size = 892962, upload-time = "2025-11-06T09:44:08.365Z" },
-    { url = "https://files.pythonhosted.org/packages/a9/8b/593dd3a2e355f933db5c3d0f4602f940a4d53948bf3b21c727e5a678265a/http_router-6.0.0-cp313-cp313-win_amd64.whl", hash = "sha256:a50268d7fa63c4a9a799737143dd8e63001da8b282d8e41fd47136633cd6561b", size = 318577, upload-time = "2025-11-06T09:44:09.767Z" },
-    { url = "https://files.pythonhosted.org/packages/cc/a3/488f5ca629c363aa70899ee8743c654fe65ebdd3c23268b08dea74fdb511/http_router-6.0.0-cp314-cp314-macosx_10_15_universal2.whl", hash = "sha256:707bfd24cf284142490c1f9a151c3db21214b91f21063b4d66e2c4fddfc80b6d", size = 440545, upload-time = "2025-11-06T09:44:11.217Z" },
-    { url = "https://files.pythonhosted.org/packages/e8/b8/c5989ede56cf8554fb668b8e86bf3618d783bfa7d5f2132a48b895e1395c/http_router-6.0.0-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:a030524b12530e7162d821b3f9515a54df8a81f4a0a09baa67247da035ecc7e7", size = 336457, upload-time = "2025-11-06T09:44:12.469Z" },
-    { url = "https://files.pythonhosted.org/packages/d6/a8/672ec0fea4cf7fea47411e3221e288a43175e8c19bdf5c33bd375d13f4db/http_router-6.0.0-cp314-cp314-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:eb5f8933e952b8c6c96215f5ced912772cbe711c4dda28f57692052a69deb43a", size = 893696, upload-time = "2025-11-06T09:44:13.493Z" },
-    { url = "https://files.pythonhosted.org/packages/8c/76/c592d301bc135458b3357fc020076b78627ab47a8801f2a86623da4aaecc/http_router-6.0.0-cp314-cp314-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:12635e3855e03a11bbfc69b709d7aed1930941fd4d23b50aaa5724bcfcc8a0f5", size = 895003, upload-time = "2025-11-06T09:44:14.975Z" },
-    { url = "https://files.pythonhosted.org/packages/1b/f6/f48848ce751d49a986e7d4f8c5460b82f0bfa4f9ca58ad6d2aa216f9fd04/http_router-6.0.0-cp314-cp314-musllinux_1_2_aarch64.whl", hash = "sha256:33cd9a8f8c8a1509db6b47f9168b1f58fdbcd8ee2f2b096799d3a3dda439b4b1", size = 879620, upload-time = "2025-11-06T09:44:16.117Z" },
-    { url = "https://files.pythonhosted.org/packages/4a/06/3b1cdd357931ed851e5c7289643de145a09b52b53cd7f4bf64d9ce11bd73/http_router-6.0.0-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:4c8a777c58ccbbe966692266219fef08dcb4b384f7b3c32a0dcedc2af6912e4f", size = 881970, upload-time = "2025-11-06T09:44:17.152Z" },
-    { url = "https://files.pythonhosted.org/packages/77/6c/38352d3f5c696fedbeb896af374580e38db664a215f4a85a1ada5310f147/http_router-6.0.0-cp314-cp314-win_amd64.whl", hash = "sha256:6bed55069c08ef7ff8f235f31e23c251a5f474a5aa2f4a2f5e2cb5b6e6527209", size = 322868, upload-time = "2025-11-06T09:44:18.525Z" },
-]
-
-[[package]]
 name = "idna"
 version = "3.19"
 source = { registry = "https://pypi.org/simple" }
@@ -91,7 +69,6 @@ source = { editable = "." }
 dependencies = [
     { name = "anyio" },
     { name = "dishka" },
-    { name = "http-router" },
     { name = "starlette" },
     { name = "uvicorn" },
     { name = "watchfiles" },
@@ -101,7 +78,6 @@ dependencies = [
 requires-dist = [
     { name = "anyio", specifier = ">=4.14.2" },
     { name = "dishka", specifier = ">=1.10.1" },
-    { name = "http-router", specifier = ">=6.0.0" },
     { name = "starlette", specifier = ">=1.6.0" },
     { name = "uvicorn", specifier = ">=0.52.4" },
     { name = "watchfiles", specifier = ">=1.2.0" },

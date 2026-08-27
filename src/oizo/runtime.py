@@ -1,20 +1,21 @@
 import inspect
-from typing import get_type_hints
+from typing import get_type_hints, Any, Callable
 
 import uvicorn
 import logging
 from dishka import Provider, Scope, from_context, make_container, Container
-from http_router import Router, NotFoundError
+from dishka.exceptions import GraphMissingFactoryError
 
-# from nanoroute import router
+# from http_router import Router, NotFoundError
+
+from starlette.applications import Starlette
+from starlette.routing import Router
 from starlette.requests import Request
-from starlette.responses import JSONResponse, PlainTextResponse, Response
 
 from watchfiles import awatch
 import anyio
 import sys
 import importlib
-from dataclasses import dataclass
 from pathlib import Path
 
 from .modules import Module
@@ -22,12 +23,7 @@ from .modules import Module
 
 class InternalProvider(Provider):
     request = from_context(Request, scope=Scope.REQUEST)
-
-
-@dataclass
-class Runtime:
-    container: Container
-    router: Router
+    app = from_context(Starlette, scope=Scope.APP)
 
 
 logger = logging.getLogger("uvicorn.error")
@@ -35,9 +31,10 @@ logger = logging.getLogger("uvicorn.error")
 
 class App:
     def __init__(self):
-        self.__runtime: Runtime | None = None
+        self.__container: Container | None = None
         self.__app_module: type[Module] | None = None
         self.__watch: set[Path] = set()
+        self.__app: Starlette = Starlette()
 
     def create(self, appModule: type[Module]):
         self.__app_module = appModule
@@ -47,93 +44,78 @@ class App:
             *(Path(path).resolve() for path in self.__app_module.get_files()),
         }
 
-        container = make_container(self.__app_module.compile(), InternalProvider())
-
-        # self.__nanorouter = router()
-        router = Router(trim_last_slash=True)
-
-        for route in self.__app_module.get_routes():
-            # self.__nanorouter.route(
-            #     route.method,
-            #     route.path,
-            # )(self.auto_inject(route.handler))
-            router.route(route.path, methods=[route.method])(
-                self.auto_inject(route.handler)
-            )
-
-        self.__runtime = Runtime(
-            container=container,
-            router=router,
+        self.__container = make_container(
+            self.__app_module.compile(),
+            InternalProvider(),
+            context={Starlette: self.__app},
         )
 
-    def auto_inject(self, handler):
+        self.__app.router.routes.clear()
+        self.__app.middleware_stack = None
 
-        signature = inspect.signature(handler)
-        hints = get_type_hints(handler)
-
-        async def wrapper(request_container, **kwargs):
-
-            dependencies = {}
-
-            for name in signature.parameters:
-                # Paramètre déjà résolu par nanoroute
-                if name in kwargs:
-                    continue
-
-                annotation = hints.get(name)
-
-                if annotation is None:
-                    continue
-
-                dependencies[name] = request_container.get(annotation)
-
-            result = handler(
-                None,
-                **kwargs,
-                **dependencies,
+        for route in self.__app_module.get_routes():
+            self.__app.router.add_route(
+                route.path,
+                endpoint=self.auto_inject(route.handler),
+                methods=[route.method],
             )
 
-            if inspect.isawaitable(result):
-                result = await result
-
-            return result
-
-        return wrapper
-
-    async def app(self, scope, receive, send):
-
-        assert scope["type"] == "http"
-
-        runtime = self.__runtime
-        if runtime is None:
-            raise RuntimeError("App.create() must be called before starting the server")
-
-        request = Request(scope, receive)
+    def auto_inject(
+        self,
+        handler: Callable[..., Any],
+    ) -> Callable[..., Any]:
+        signature = inspect.signature(handler)
 
         try:
-            # handler, kwargs = self.__nanorouter.lookup(
-            #     request.method,
-            #     request.url.path,
-            # )
-            route = runtime.router(path=request.url.path, method=request.method)
-            if route.target is None:
-                raise NotFoundError
-            handler, kwargs = (route.target, route.params or {})
-        except NotFoundError:
-            return await PlainTextResponse(
-                None,
-                status_code=404,
-            )(scope, receive, send)
+            hints = get_type_hints(handler)
+        except Exception:
+            hints = {
+                name: parameter.annotation
+                for name, parameter in signature.parameters.items()
+                if parameter.annotation is not inspect.Parameter.empty
+            }
 
-        with runtime.container(context={Request: request}) as request_container:
-            result = await handler(
-                request_container,
-                **kwargs,
-            )
+        async def wrapper(request: Request, **kwargs: Any) -> Any:
+            # Check for container instead of runtime
+            if self.__container is None:
+                raise RuntimeError("Application container has not been initialized.")
 
-        if isinstance(result, Response):
-            return await result(scope, receive, send)
-        return await JSONResponse(result)(scope, receive, send)
+            # Use self.__container directly
+            with self.__container(
+                context={Request: request},
+            ) as request_container:
+
+                dependencies: dict[str, Any] = {}
+
+                for name, parameter in signature.parameters.items():
+                    if name == next(iter(signature.parameters), None):
+                        continue
+
+                    if name in kwargs:
+                        continue
+
+                    annotation = hints.get(name)
+
+                    if annotation is None:
+                        continue
+
+                    try:
+                        dependencies[name] = request_container.get(annotation)
+                    except GraphMissingFactoryError:
+                        continue
+
+                result = handler(
+                    None,
+                    **kwargs,
+                    **dependencies,
+                )
+
+                if inspect.isawaitable(result):
+                    result = await result
+
+                return result
+
+        return wrapper
 
     def _purge_and_reload_module(self):
         """Purge tous les modules surveillés de sys.modules pour forcer la relecture disque."""
@@ -181,9 +163,9 @@ class App:
             logger.info(f"Detected change. Reloading...")
 
             # 1. Fermeture propre du conteneur Dishka
-            if self.__runtime and self.__runtime.container:
+            if self.__container:
                 try:
-                    self.__runtime.container.close()
+                    self.__container.close()
                 except Exception as err:
                     logger.error(f"Container closing error : {err}")
 
@@ -204,7 +186,11 @@ class App:
 
     async def serve(self, host: str, port: int):
         config = uvicorn.Config(
-            app=self.app, host=host, port=port, interface="asgi3", log_level="info"
+            app=self.__app,
+            host=host,
+            port=port,
+            interface="asgi3",
+            log_level="info",
         )
         server = uvicorn.Server(config)
 

@@ -5,7 +5,6 @@ requires-python = ">=3.13"
 dependencies = [
     "anyio>=4.14.2",
     "dishka>=1.10.1",
-    "http-router>=6.0.0",
     "starlette>=1.6.0",
     "uvicorn>=0.52.4",
     "watchfiles>=1.2.0",
