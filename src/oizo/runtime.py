@@ -57,6 +57,10 @@ class App:
         self.__watch = {
             Path(inspect.stack()[1][1]).resolve(),
             *(Path(path).resolve() for path in self.__app_module.get_files()),
+            *(
+                Path(inspect.getfile(path)).resolve()
+                for path in consumer.all_middlewares
+            ),
         }
 
         self.__container = make_container(
@@ -81,7 +85,6 @@ class App:
             routes = []
 
             for route in mount.routes:
-                print(route)
                 route_middlewares = consumer.get_middlewares(
                     route.path,
                     route.method,
