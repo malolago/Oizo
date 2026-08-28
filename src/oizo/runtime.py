@@ -9,20 +9,21 @@ from typing import Any, get_type_hints
 import anyio
 import uvicorn
 from dishka import Container, Provider, Scope, from_context, make_container
-from dishka.exceptions import GraphMissingFactoryError
+from pydantic import ValidationError
 
 # from http_router import Router, NotFoundError
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
 from starlette.requests import Request
-from starlette.responses import Response
+from starlette.responses import JSONResponse, Response
 from starlette.routing import Mount, Route
 from watchfiles import awatch
 
-# from oizo.middleware.middleware import Middleware
+from oizo.middleware.bodyparser_middleware import BodyParserMiddleware
 from oizo.middleware.consumer import MiddlewareConsumer
 from oizo.middleware.container_middleware import ContainerMiddleware
 from oizo.middleware.injection_middleware import InjectionMiddleware
+from oizo.resolver import DishkaResolver, ParameterResolver, PydanticResolver
 
 from .modules import Module
 
@@ -36,12 +37,18 @@ class InternalProvider(Provider):
 logger = logging.getLogger("uvicorn.error")
 
 
+async def validation_exception_handler(request: Request, exc: ValidationError):
+    return JSONResponse(status_code=422, content={"detail": exc.errors()})
+
+
 class App:
     def __init__(self):
         self.__container: Container | None = None
         self.__app_module: type[Module] | None = None
         self.__watch: set[Path] = set()
-        self.__app: Starlette = Starlette()
+        self.__app: Starlette = Starlette(
+            exception_handlers={ValidationError: validation_exception_handler}  # type: ignore[arg-type]
+        )
 
     def create(self, appModule: type[Module]):
         self.__app_module = appModule
@@ -76,6 +83,7 @@ class App:
             ContainerMiddleware,
             container=self.__container,
         )
+        self.__app.add_middleware(BodyParserMiddleware)
 
         # registry = self.__app_module.get_registry()  # type: ignore
 
@@ -119,6 +127,12 @@ class App:
 
         signature = inspect.signature(handler)
 
+        # Liste des résolveurs (tu pourrais même les injecter ou les configurer dans Module)
+        resolvers: list[ParameterResolver] = [
+            PydanticResolver(),
+            DishkaResolver(),
+        ]
+
         try:
             hints = get_type_hints(handler)
         except Exception:  # noqa: BLE001
@@ -129,32 +143,28 @@ class App:
             }
 
         async def wrapper(request: Request, **kwargs: Any) -> Any:
-
             request_container = request.scope["dishka_container"]
             response = request.scope["dishka_response"]
 
             dependencies: dict[str, Any] = {}
-
             parameters = list(signature.parameters.items())
 
             for index, (name, parameter) in enumerate(parameters):
 
                 # first parameter is the Request
-                if index == 0:
-                    continue
-
-                if name in kwargs:
+                if index == 0 or name in kwargs:
                     continue
 
                 annotation = hints.get(name)
 
-                if annotation is None:
-                    continue
-
-                try:
-                    dependencies[name] = request_container.get(annotation)
-                except GraphMissingFactoryError:
-                    continue
+                for resolver in resolvers:
+                    if resolver.can_resolve(name, annotation):
+                        resolved_value = await resolver.resolve(
+                            request, request_container, name, annotation
+                        )
+                        if resolved_value is not None:
+                            dependencies[name] = resolved_value
+                        break  # On passe au paramètre suivant dès qu'un résolveur a fonctionné
 
             result = handler(
                 None,
