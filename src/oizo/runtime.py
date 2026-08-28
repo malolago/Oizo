@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, get_type_hints
 
 import anyio
+from starlette.schemas import SchemaGenerator
 import uvicorn
 from dishka import Container, Provider, Scope, from_context, make_container
 from pydantic import ValidationError
@@ -49,6 +50,12 @@ class App:
         self.__app: Starlette = Starlette(
             exception_handlers={ValidationError: validation_exception_handler}  # type: ignore[arg-type]
         )
+        self.__middlewares = []
+
+    def use(self, *middlewares):
+        for mw in middlewares:
+            self.__watch.add(Path(inspect.getfile(mw)).resolve())
+            self.__middlewares.append(mw)
 
     def create(self, appModule: type[Module]):
         self.__app_module = appModule
@@ -84,6 +91,7 @@ class App:
             container=self.__container,
         )
         self.__app.add_middleware(BodyParserMiddleware)
+        [self.__app.add_middleware(mw) for mw in dict.fromkeys(self.__middlewares)]
 
         # registry = self.__app_module.get_registry()  # type: ignore
 
@@ -142,7 +150,7 @@ class App:
                 if parameter.annotation is not inspect.Parameter.empty
             }
 
-        async def wrapper(request: Request, **kwargs: Any) -> Any:
+        async def wrapper(request: Request, **kwargs: Any) -> Response:
             request_container = request.scope["dishka_container"]
             response = request.scope["dishka_response"]
 
@@ -150,8 +158,6 @@ class App:
             parameters = list(signature.parameters.items())
 
             for index, (name, parameter) in enumerate(parameters):
-
-                # first parameter is the Request
                 if index == 0 or name in kwargs:
                     continue
 
@@ -160,11 +166,16 @@ class App:
                 for resolver in resolvers:
                     if resolver.can_resolve(name, annotation):
                         resolved_value = await resolver.resolve(
-                            request, request_container, name, annotation
+                            request,
+                            request_container,
+                            name,
+                            annotation,
                         )
+
                         if resolved_value is not None:
                             dependencies[name] = resolved_value
-                        break  # On passe au paramètre suivant dès qu'un résolveur a fonctionné
+
+                        break
 
             result = handler(
                 None,
@@ -194,6 +205,14 @@ class App:
                         header[0].lower() == b"set-cookie"
                         or header[0].lower() not in result_header_names
                     )
+                )
+
+            else:
+                result = JSONResponse(
+                    content=result,
+                    status_code=response.status_code,
+                    headers=dict(response.headers),
+                    background=response.background,
                 )
 
             return result
