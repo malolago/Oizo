@@ -1,5 +1,4 @@
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
 
 
 class BodyParserMiddleware(BaseHTTPMiddleware):

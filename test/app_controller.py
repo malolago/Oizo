@@ -17,14 +17,19 @@ class appController(Controller):
     prefix = "/"
 
     @Get("/{id}/a")
-    async def get(_, request: Request, response: Response, params: DTO, app: Starlette):
+    async def get(
+        _,
+        request: Request,
+        response: Response,
+        params: DTO,
+        app: Starlette,
+    ):
         print(
             SchemaGenerator(
                 {"openapi": "3.0.0", "info": {"title": "Example API", "version": "1.0"}}
             ).get_endpoints(routes=app.routes)
         )
 
-        return
 
     @Get("/test/a")
     async def get2(_, response: Response):

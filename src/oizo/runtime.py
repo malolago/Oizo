@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any, get_type_hints
 
 import anyio
-from starlette.schemas import SchemaGenerator
 import uvicorn
 from dishka import Container, Provider, Scope, from_context, make_container
 from pydantic import ValidationError
@@ -18,6 +17,7 @@ from starlette.middleware import Middleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Mount, Route
+from starlette.types import Lifespan
 from watchfiles import awatch
 
 from oizo.middleware.bodyparser_middleware import BodyParserMiddleware
@@ -43,12 +43,13 @@ async def validation_exception_handler(request: Request, exc: ValidationError):
 
 
 class App:
-    def __init__(self):
+    def __init__(self, lifespan: Lifespan | None = None):
         self.__container: Container | None = None
         self.__app_module: type[Module] | None = None
         self.__watch: set[Path] = set()
         self.__app: Starlette = Starlette(
-            exception_handlers={ValidationError: validation_exception_handler}  # type: ignore[arg-type]
+            lifespan=lifespan,
+            exception_handlers={ValidationError: validation_exception_handler},  # type: ignore[arg-type]
         )
         self.__middlewares = []
 

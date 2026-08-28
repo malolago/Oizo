@@ -25,10 +25,7 @@ class ContainerMiddleware:
         response.raw_headers.clear()
 
         with self.container(
-            context={
-                Request: request,
-                Response: response,
-            }
+            context={Request: request, Response: response}
         ) as request_container:
 
             scope["dishka_container"] = request_container
