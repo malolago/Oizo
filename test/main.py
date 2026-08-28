@@ -1,6 +1,7 @@
-from oizo.runtime import App
-import inspect
+
 from app_module import appModule
+
+from oizo.runtime import App
 
 if __name__ == "__main__":
     app = App()

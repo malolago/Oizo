@@ -1,25 +1,23 @@
+import importlib
 import inspect
-from typing import get_type_hints, Any, Callable
-
-from starlette.schemas import SchemaGenerator
-import uvicorn
 import logging
-from dishka import Provider, Scope, from_context, make_container, Container
+import sys
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any, get_type_hints
+
+import anyio
+import uvicorn
+from dishka import Container, Provider, Scope, from_context, make_container
 from dishka.exceptions import GraphMissingFactoryError
 
 # from http_router import Router, NotFoundError
-
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
+from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import Mount, Route
-from starlette.requests import Request
-
 from watchfiles import awatch
-import anyio
-import sys
-import importlib
-from pathlib import Path
 
 # from oizo.middleware.middleware import Middleware
 from oizo.middleware.consumer import MiddlewareConsumer
@@ -123,7 +121,7 @@ class App:
 
         try:
             hints = get_type_hints(handler)
-        except Exception:
+        except Exception:  # noqa: BLE001
             hints = {
                 name: parameter.annotation
                 for name, parameter in signature.parameters.items()
@@ -211,8 +209,8 @@ class App:
                 try:
                     if Path(mod_file).resolve() in watched_paths:
                         modules_to_purge.append(mod_name)
-                except Exception:
-                    pass
+                except Exception as err:  # noqa: BLE001
+                    logger.error(err)
 
         # S'assurer que le module racine est aussi ciblé
         if root_module_name in sys.modules and root_module_name not in modules_to_purge:
@@ -235,19 +233,19 @@ class App:
         logger.info(f"Watching for {len(watch_paths)} files.")
 
         async for changes in awatch(*watch_paths):
-            logger.info(f"Detected change. Reloading...")
+            logger.info("Detected change. Reloading...")
 
             # 1. Fermeture propre du conteneur Dishka
             if self.__container:
                 try:
                     self.__container.close()
-                except Exception as err:
+                except Exception as err:  # noqa: BLE001
                     logger.error(f"Container closing error : {err}")
 
             # 2. Purge du cache sys.modules et ré-importation
             try:
                 self._purge_and_reload_module()
-            except Exception as err:
+            except Exception as err:  # noqa: BLE001
                 logger.error(f"Modules reloading error : {err}")
                 continue
 
@@ -256,7 +254,7 @@ class App:
                 assert self.__app_module
                 self.create(self.__app_module)
                 logger.info("Runtime successfully recreated. Watching for changes...")
-            except Exception as err:
+            except Exception as err:  # noqa: BLE001
                 logger.error(f"Runtime compilation error : {err}")
 
     async def serve(self, host: str, port: int):

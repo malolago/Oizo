@@ -1,8 +1,8 @@
+from starlette.requests import Request
 from starlette.responses import PlainTextResponse, Response
 
 from oizo.controllers import Controller
 from oizo.decorators import Get
-from starlette.requests import Request
 
 
 class appController(Controller):

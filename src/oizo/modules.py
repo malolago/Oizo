@@ -1,10 +1,11 @@
+import inspect
 from abc import abstractmethod
 
 import dishka
-import inspect
 
 from oizo.middleware.consumer import MiddlewareConsumer
-from .controllers import Controller, _Route, _Mount
+
+from .controllers import Controller, _Mount
 from .providers import Provider
 
 

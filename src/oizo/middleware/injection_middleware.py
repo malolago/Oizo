@@ -1,5 +1,5 @@
-from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware import _MiddlewareFactory
+from starlette.middleware.base import BaseHTTPMiddleware
 
 
 class InjectionMiddleware(BaseHTTPMiddleware):
