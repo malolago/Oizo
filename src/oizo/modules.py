@@ -1,5 +1,9 @@
+from abc import abstractmethod
+
 import dishka
 import inspect
+
+from oizo.middleware.consumer import MiddlewareConsumer
 from .controllers import Controller, _Route, _Mount
 from .providers import Provider
 
@@ -49,6 +53,8 @@ class Module:
         routes: list[_Mount] = []
         for controller in cls.controllers:
             routes.append(controller.get_routes())
+        for imp in cls.imports:
+            routes.extend(imp.get_routes())
 
         return routes
 
@@ -64,3 +70,8 @@ class Module:
             files |= mod.get_files()
 
         return files
+
+    @staticmethod
+    @abstractmethod
+    def configure(consumer: MiddlewareConsumer) -> None:
+        raise NotImplementedError

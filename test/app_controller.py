@@ -1,11 +1,19 @@
+from starlette.responses import PlainTextResponse, Response
+
 from oizo.controllers import Controller
-from oizo.decorators import get
+from oizo.decorators import Get
 from starlette.requests import Request
 
 
 class appController(Controller):
     prefix = "/"
 
-    @get("test")
-    async def get(_, request: Request):
-        return request.url.path
+    @Get("/{id}/a")
+    async def get(_, request: Request, response: Response):
+        response.body = b"Test"
+
+        return response
+
+    @Get("/test/a")
+    async def get2(_, response: Response):
+        return PlainTextResponse("???")

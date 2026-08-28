@@ -1,6 +1,7 @@
 import inspect
 from typing import get_type_hints, Any, Callable
 
+from starlette.schemas import SchemaGenerator
 import uvicorn
 import logging
 from dishka import Provider, Scope, from_context, make_container, Container
@@ -9,8 +10,9 @@ from dishka.exceptions import GraphMissingFactoryError
 # from http_router import Router, NotFoundError
 
 from starlette.applications import Starlette
+from starlette.middleware import Middleware
 from starlette.responses import Response
-from starlette.routing import Mount, Route, Router
+from starlette.routing import Mount, Route
 from starlette.requests import Request
 
 from watchfiles import awatch
@@ -18,6 +20,11 @@ import anyio
 import sys
 import importlib
 from pathlib import Path
+
+# from oizo.middleware.middleware import Middleware
+from oizo.middleware.consumer import MiddlewareConsumer
+from oizo.middleware.container_middleware import ContainerMiddleware
+from oizo.middleware.injection_middleware import InjectionMiddleware
 
 from .modules import Module
 
@@ -41,6 +48,12 @@ class App:
     def create(self, appModule: type[Module]):
         self.__app_module = appModule
 
+        consumer = MiddlewareConsumer()
+        self.__app_module.configure(consumer)
+
+        middlewares_provider = Provider(Scope.APP)
+        middlewares_provider.provide_all(*consumer.all_middlewares)
+
         self.__watch = {
             Path(inspect.stack()[1][1]).resolve(),
             *(Path(path).resolve() for path in self.__app_module.get_files()),
@@ -49,28 +62,60 @@ class App:
         self.__container = make_container(
             self.__app_module.compile(),
             InternalProvider(),
+            middlewares_provider,
             context={Starlette: self.__app},
         )
 
         self.__app.router.routes.clear()
+        self.__app.user_middleware.clear()
         self.__app.middleware_stack = None
+
+        self.__app.add_middleware(
+            ContainerMiddleware,
+            container=self.__container,
+        )
+
+        # registry = self.__app_module.get_registry()  # type: ignore
 
         for mount in self.__app_module.get_routes():
             routes = []
+
             for route in mount.routes:
+                print(route)
+                route_middlewares = consumer.get_middlewares(
+                    route.path,
+                    route.method,
+                )
+
+                middlewares = [
+                    Middleware(
+                        InjectionMiddleware,
+                        middleware_type=middleware_type,
+                    )
+                    for middleware_type in route_middlewares
+                ]
+
                 routes.append(
                     Route(
                         path=route.path,
                         endpoint=self.auto_inject(route.handler),
                         methods=[route.method],
+                        middleware=middlewares,
                     )
                 )
-            self.__app.router.routes.append(Mount(path=mount.prefix, routes=routes))
+
+            self.__app.router.routes.append(
+                Mount(
+                    path=mount.prefix,
+                    routes=routes,
+                )
+            )
 
     def auto_inject(
         self,
         handler: Callable[..., Any],
     ) -> Callable[..., Any]:
+
         signature = inspect.signature(handler)
 
         try:
@@ -83,65 +128,64 @@ class App:
             }
 
         async def wrapper(request: Request, **kwargs: Any) -> Any:
-            # Check for container instead of runtime
-            if self.__container is None:
-                raise RuntimeError("Application container has not been initialized.")
 
-            response = Response()
-            response.raw_headers.clear()
+            request_container = request.scope["dishka_container"]
+            response = request.scope["dishka_response"]
 
-            # Use self.__container directly
-            with self.__container(
-                context={Request: request, Response: response},
-            ) as request_container:
+            dependencies: dict[str, Any] = {}
 
-                dependencies: dict[str, Any] = {}
+            parameters = list(signature.parameters.items())
 
-                for name, parameter in signature.parameters.items():
-                    if name == next(iter(signature.parameters), None):
-                        continue
+            for index, (name, parameter) in enumerate(parameters):
 
-                    if name in kwargs:
-                        continue
+                # first parameter is the Request
+                if index == 0:
+                    continue
 
-                    annotation = hints.get(name)
+                if name in kwargs:
+                    continue
 
-                    if annotation is None:
-                        continue
+                annotation = hints.get(name)
 
-                    try:
-                        dependencies[name] = request_container.get(annotation)
-                    except GraphMissingFactoryError:
-                        continue
+                if annotation is None:
+                    continue
 
-                result = handler(
-                    None,
-                    **kwargs,
-                    **dependencies,
-                )
+                try:
+                    dependencies[name] = request_container.get(annotation)
+                except GraphMissingFactoryError:
+                    continue
 
-                if inspect.isawaitable(result):
-                    result = await result
+            result = handler(
+                None,
+                **kwargs,
+                **dependencies,
+            )
 
-                if result is None:
-                    result = response
-                elif isinstance(result, Response):
-                    if response.status_code != 200:
-                        result.status_code = response.status_code
-                    if response.background is not None:
-                        result.background = response.background
+            if inspect.isawaitable(result):
+                result = await result
 
-                    result_header_names = {
-                        name.lower() for name, _ in result.raw_headers
-                    }
-                    result.raw_headers.extend(
-                        header
-                        for header in response.raw_headers
-                        if header[0].lower() == b"set-cookie"
+            if result is None:
+                result = response
+
+            elif isinstance(result, Response):
+                if response.status_code != 200:
+                    result.status_code = response.status_code
+
+                if response.background is not None:
+                    result.background = response.background
+
+                result_header_names = {name.lower() for name, _ in result.raw_headers}
+
+                result.raw_headers.extend(
+                    header
+                    for header in response.raw_headers
+                    if (
+                        header[0].lower() == b"set-cookie"
                         or header[0].lower() not in result_header_names
                     )
+                )
 
-                return result
+            return result
 
         return wrapper
 

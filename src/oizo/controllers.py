@@ -35,7 +35,11 @@ class Controller:
     def get_routes(cls):
         routes: list[_Route] = []
 
-        for _, method in inspect.getmembers(cls, inspect.isfunction):
+        for _, method in sorted(
+            inspect.getmembers(cls, inspect.isfunction),
+            key=lambda x: inspect.getsourcelines(x[1])[1],
+            reverse=True,
+        ):
             route = getattr(method, ROUTE_META, None)
 
             if route:
