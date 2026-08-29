@@ -1,3 +1,5 @@
+# import anyio
+import asyncio
 import importlib
 import inspect
 import logging
@@ -6,7 +8,6 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, get_type_hints
 
-import anyio
 import uvicorn
 from dishka import Container, Provider, Scope, from_context, make_container
 from pydantic import ValidationError
@@ -47,6 +48,7 @@ class App:
         self.__container: Container | None = None
         self.__app_module: type[Module] | None = None
         self.__watch: set[Path] = set()
+        self.__shutdown_event = asyncio.Event()
         self.__app: Starlette = Starlette(
             lifespan=lifespan,
             exception_handlers={ValidationError: validation_exception_handler},  # type: ignore[arg-type]
@@ -94,8 +96,6 @@ class App:
         self.__app.add_middleware(BodyParserMiddleware)
         [self.__app.add_middleware(mw) for mw in dict.fromkeys(self.__middlewares)]
 
-        # registry = self.__app_module.get_registry()  # type: ignore
-
         for mount in self.__app_module.get_routes():
             routes = []
 
@@ -136,7 +136,6 @@ class App:
 
         signature = inspect.signature(handler)
 
-        # Liste des résolveurs (tu pourrais même les injecter ou les configurer dans Module)
         resolvers: list[ParameterResolver] = [
             PydanticResolver(),
             DishkaResolver(),
@@ -221,17 +220,14 @@ class App:
         return wrapper
 
     def _purge_and_reload_module(self):
-        """Purge tous les modules surveillés de sys.modules pour forcer la relecture disque."""
         if not self.__app_module:
             return
 
         root_module_name = self.__app_module.__module__
         class_name = self.__app_module.__name__
 
-        # Canonicalisation des chemins surveillés
         watched_paths = {p.resolve() for p in self.__watch}
 
-        # 1. Identification de TOUS les modules en cache correspondant aux fichiers surveillés
         modules_to_purge = []
         for mod_name, mod in list(sys.modules.items()):
             mod_file = getattr(mod, "__file__", None)
@@ -242,20 +238,16 @@ class App:
                 except Exception as err:  # noqa: BLE001
                     logger.error(err)
 
-        # S'assurer que le module racine est aussi ciblé
         if root_module_name in sys.modules and root_module_name not in modules_to_purge:
             modules_to_purge.append(root_module_name)
 
-        # 2. Suppression explicite du cache Python
         for mod_name in modules_to_purge:
             sys.modules.pop(mod_name, None)
 
-        # 3. Ré-importation propre : Python ré-exécutera tous les fichiers .py purgés
         fresh_module = importlib.import_module(root_module_name)
         self.__app_module = getattr(fresh_module, class_name)
 
     async def _watch_loop(self):
-        """Surveille les modifications, ferme le container, purge le cache et recrée l'app."""
         if not self.__watch:
             return
 
@@ -265,21 +257,18 @@ class App:
         async for changes in awatch(*watch_paths):
             logger.info("Detected change. Reloading...")
 
-            # 1. Fermeture propre du conteneur Dishka
             if self.__container:
                 try:
                     self.__container.close()
                 except Exception as err:  # noqa: BLE001
                     logger.error(f"Container closing error : {err}")
 
-            # 2. Purge du cache sys.modules et ré-importation
             try:
                 self._purge_and_reload_module()
             except Exception as err:  # noqa: BLE001
                 logger.error(f"Modules reloading error : {err}")
                 continue
 
-            # 3. Recompilation du conteneur et des routes
             try:
                 assert self.__app_module
                 self.create(self.__app_module)
@@ -287,7 +276,7 @@ class App:
             except Exception as err:  # noqa: BLE001
                 logger.error(f"Runtime compilation error : {err}")
 
-    async def serve(self, host: str, port: int):
+    async def serve(self, debug: bool, host: str, port: int):
         config = uvicorn.Config(
             app=self.__app,
             host=host,
@@ -295,14 +284,45 @@ class App:
             interface="asgi3",
             log_level="info",
         )
+
         server = uvicorn.Server(config)
 
-        async with anyio.create_task_group() as tg:
-            tg.start_soon(server.serve)
-            tg.start_soon(self._watch_loop)
+        if not debug:
+            await server.serve()
+            return
 
-    def listen(self, host="127.0.0.1", port=8000):
-        anyio.run(self.serve, host, port)
+        watcher_task = asyncio.create_task(
+            self._watch_loop(),
+            name="oizo-file-watcher",
+        )
+
+        try:
+            await server.serve()
+
+        finally:
+            logger.info("Stopping Oizo...")
+
+            self.__shutdown_event.set()
+            watcher_task.cancel()
+
+            try:
+                await watcher_task
+            except asyncio.CancelledError:
+                pass
+
+            if self.__container:
+                try:
+                    self.__container.close()
+                except Exception as err:  # noqa: BLE001
+                    logger.error(f"Container closing error: {err}")
+
+            logger.info("Oizo stopped.")
+
+    def listen(self, debug=True, host="127.0.0.1", port=8000):
+        try:
+            asyncio.run(self.serve(debug, host, port))
+        except KeyboardInterrupt:
+            logger.info("Oizo stopped.")
 
 
 if __name__ == "__main__":
