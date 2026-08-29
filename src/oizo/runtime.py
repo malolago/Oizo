@@ -12,14 +12,12 @@ import uvicorn
 from dishka import Container, Provider, Scope, from_context, make_container
 from pydantic import ValidationError
 
-# from http_router import Router, NotFoundError
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Mount, Route
 from starlette.types import Lifespan
-from watchfiles import awatch
 
 from oizo.middleware.bodyparser_middleware import BodyParserMiddleware
 from oizo.middleware.consumer import MiddlewareConsumer
@@ -250,6 +248,8 @@ class App:
     async def _watch_loop(self):
         if not self.__watch:
             return
+
+        from watchfiles import awatch
 
         watch_paths = [str(p) for p in self.__watch]
         logger.info(f"Watching for {len(watch_paths)} files.")
