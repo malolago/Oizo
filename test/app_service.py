@@ -1,4 +1,4 @@
-from oizo.providers import Provider
+from oizo.injectable import Injectable
 
 
-class appService(Provider): ...
+class appService(Injectable): ...

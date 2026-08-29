@@ -1,7 +1,7 @@
 import dishka
 
 
-class Provider:
+class Injectable:
     def __init__(self):
         super().__init__()
 

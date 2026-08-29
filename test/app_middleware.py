@@ -1,10 +1,10 @@
 from starlette.applications import Starlette
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from oizo.providers import Provider
+from oizo.injectable import Injectable
 
 
-class TestService(Provider): ...
+class TestService(Injectable): ...
 
 
 class appMiddleware(BaseHTTPMiddleware):

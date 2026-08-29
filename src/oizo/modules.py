@@ -6,12 +6,12 @@ import dishka
 from oizo.middleware.consumer import MiddlewareConsumer
 
 from .controllers import Controller, _Mount
-from .providers import Provider
+from .injectable import Injectable
 
 
 class Module:
     imports: tuple[type["Module"], ...]
-    providers: tuple[type["Provider"], ...]
+    providers: tuple[type[Injectable], ...]
     controllers: tuple[type["Controller"], ...]
 
     def __init_subclass__(cls, **kwargs):
