@@ -10,7 +10,6 @@ from typing import Any, get_type_hints
 
 import uvicorn
 from dishka import Container, Provider, Scope, from_context, make_container
-from pydantic import ValidationError
 
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
@@ -23,7 +22,7 @@ from oizo.middleware.bodyparser_middleware import BodyParserMiddleware
 from oizo.middleware.consumer import MiddlewareConsumer
 from oizo.middleware.container_middleware import ContainerMiddleware
 from oizo.middleware.injection_middleware import InjectionMiddleware
-from oizo.resolver import DishkaResolver, ParameterResolver, PydanticResolver
+from oizo.resolver import DishkaResolver, ParameterResolver
 
 from .modules import Module
 
@@ -37,20 +36,13 @@ class InternalProvider(Provider):
 logger = logging.getLogger("uvicorn.error")
 
 
-async def validation_exception_handler(request: Request, exc: ValidationError):
-    return JSONResponse(status_code=422, content={"detail": exc.errors()})
-
-
 class App:
     def __init__(self, lifespan: Lifespan | None = None):
         self.__container: Container | None = None
         self.__app_module: type[Module] | None = None
         self.__watch: set[Path] = set()
         self.__shutdown_event = asyncio.Event()
-        self.__app: Starlette = Starlette(
-            lifespan=lifespan,
-            exception_handlers={ValidationError: validation_exception_handler},  # type: ignore[arg-type]
-        )
+        self.__app: Starlette = Starlette(lifespan=lifespan)
         self.__middlewares = []
 
     def use(self, *middlewares):
@@ -134,10 +126,7 @@ class App:
 
         signature = inspect.signature(handler)
 
-        resolvers: list[ParameterResolver] = [
-            PydanticResolver(),
-            DishkaResolver(),
-        ]
+        resolvers: list[ParameterResolver] = [DishkaResolver()]
 
         try:
             hints = get_type_hints(handler)

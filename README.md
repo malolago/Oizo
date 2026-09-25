@@ -18,7 +18,7 @@
 - 🎯 **Decorated Routes** - Define routes with clean and elegant decorators
 - 💉 **Dependency Injection in Routes** - Automatic dependency injection into route handlers, powered by **Dishka**
 - 🔄 **Powerful Middleware** - Flexible middleware pipeline with dependency injection support
-- ✔️ **Automatic Data Validation** - Strongly-typed route parameters and request bodies with **Pydantic**
+- ✔️ **Typed Request Data** - Strongly-typed route parameters and request bodies
 - ⚡ **High Performance** - Built on **Starlette** and **Uvicorn** for optimal performance
 - 🔥 **Auto Hot Reload** - Automatic code reloading in development
 - 🧪 **Highly Testable** - Clean architecture makes testing straightforward
@@ -50,32 +50,13 @@ class UserService(Injectable, scope = Scope.SINGLETON):
         return {"id": id, "name": "User"}
 ```
 
-### Define Data Transfer Objects (DTOs)
-
-```python
-from oizo.utils.params import Params
-from oizo.utils.body import Body
-from oizo.utils.query import QS
-
-class GetUserParams(Params):
-    id: int
-
-class CreateUserBody(Body):
-    name: str
-    email: str
-
-class SearchQuery(QS):
-    q: str
-    limit: int = 10
-```
-
 ### Create a Controller
 
 Route handlers receive dependencies as parameters. The first parameter is ignored (due to pyright not handling programmatic `staticmethod`), and other parameters are automatically resolved:
 
 ```python
 from oizo.controllers import Controller
-from oizo.decorators import Get, Post
+from oizo.decorators import Get
 
 class UserController(Controller):
     prefix = "/users"
@@ -84,23 +65,6 @@ class UserController(Controller):
     async def list_users(_, service: UserService):
         return service.get_users()
     
-    @Get("/{id}")
-    async def get_user(_, params: GetUserParams, service: UserService):
-        return service.get_user(params.id)
-    
-    @Get("/search")
-    async def search_users(_, query: SearchQuery, service: UserService):
-        # query.q contains the search term
-        # query.limit contains the result limit
-        return {"q": query.q, "limit": query.limit}
-    
-    @Post("/")
-    async def create_user(_, body: CreateUserBody, service: UserService):
-        return {
-            "id": 3,
-            "name": body.name,
-            "email": body.email
-        }
 ```
 
 If you don't want to define DTOs, Starlette's `Request`, `Response` and `Starlette` are also automatically injected into each route handler, and each json-formed bodies are serialized:
@@ -177,13 +141,6 @@ class ResourceController(Controller):
     async def list(_, service: MyService):
         return service.list()
     
-    @Get("/{id}")
-    async def get(_, params: ResourceParams, service: MyService):
-        return service.get(params.id)
-    
-    @Post("/")
-    async def create(_, body: ResourceBody, service: MyService):
-        return service.create(body.dict())
 ```
 
 ### Dependency Injection
@@ -192,49 +149,6 @@ Dependencies are **injected directly into route handler parameters**. The framew
 
 ```python
 class UserController(Controller):
-    prefix = "/users"
-    
-    @Get("/")
-    async def list_users(_, service: UserService, logger: Logger):
-        # service and logger are automatically injected
-        logger.info("Listing users")
-        return service.get_users()
-```
-
-### Data Transfer Objects
-
-Use **Params** for route parameters, **Body** for request bodies, and **QS** for query strings:
-
-```python
-from oizo.utils.params import Params
-from oizo.utils.body import Body
-from oizo.utils.query import QS
-from pydantic import Field
-
-class UserParams(Params):
-    id: int
-
-class CreateUserBody(Body):
-    name: str
-    email: str
-
-class FilterQuery(QS):
-    role: str = "user"
-    limit: int = Field(default=10, le=100)
-```
-
-The framework automatically validates these using **Pydantic** and returns a 422 validation error if validation fails. You can also blend them together:
-
-```python
-from oizo.utils.params import Params
-from oizo.utils.body import Body
-from oizo.utils.query import QS
-from pydantic import Field
-
-class UserParams(Params, QS):
-    id: int
-    limit: int
-    page: int
 ```
 
 ### Middleware
@@ -338,34 +252,6 @@ class AppModule(Module):
     controllers = ()
 ```
 
-### Validation with Pydantic
-
-Use Pydantic's validators for complex validation logic:
-
-```python
-from pydantic import field_validator, BaseModel
-from oizo.utils.body import Body
-
-class CreateUserBody(Body):
-    name: str
-    email: str
-    age: int
-    
-    @field_validator('email')
-    @classmethod
-    def validate_email(cls, v):
-        if '@' not in v:
-            raise ValueError('Invalid email')
-        return v
-    
-    @field_validator('age')
-    @classmethod
-    def validate_age(cls, v):
-        if v < 18:
-            raise ValueError('User must be 18 or older')
-        return v
-```
-
 ## Project Structure
 
 ```
@@ -375,17 +261,13 @@ src/oizo/
 ├── decorators.py               # HTTP decorators (@Get, @Post, etc.)
 ├── injectable.py               # Base Injectable class for services
 ├── modules.py                  # Module system
-├── resolver.py                 # Dependency resolution (PydanticResolver, DishkaResolver)
+├── resolver.py                 # Dependency resolution (request data, Dishka)
 ├── runtime.py                  # Application runtime & auto-injection
 ├── middleware/
 │   ├── bodyparser_middleware.py    # Parse JSON request body
 │   ├── consumer.py                 # Middleware registration API
 │   ├── container_middleware.py     # Attach DI container to requests
 │   └── injection_middleware.py     # Inject middleware dependencies
-└── utils/
-    ├── body.py                 # Body DTO base class
-    ├── params.py               # Route parameters DTO base class
-    └── query.py                # Query string DTO base class
 ```
 
 ## Testing
@@ -416,7 +298,7 @@ Oizo is built on proven, high-performance libraries:
 - **Starlette** - Lightning-fast ASGI framework
 - **Uvicorn** - Ultra-fast ASGI server
 - **Dishka** - Modern, efficient dependency injection
-- **Pydantic v2** - Data validation with excellent performance
+- **Typed DTOs** - Simple request data containers
 
 ## Contributing
 

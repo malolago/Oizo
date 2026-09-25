@@ -1,15 +1,8 @@
-import inspect
-import json
 from typing import Any, Protocol
 
 from dishka import Container
 from dishka.exceptions import GraphMissingFactoryError
-from pydantic import BaseModel
 from starlette.requests import Request
-
-from oizo.utils.body import Body
-from oizo.utils.params import Params
-from oizo.utils.query import QS
 
 
 class ParameterResolver(Protocol):
@@ -27,9 +20,7 @@ class ParameterResolver(Protocol):
 class DishkaResolver:
     def can_resolve(self, name: str, annotation: Any) -> bool:
         # Dishka peut tenter de résoudre tout ce qui a une annotation valide
-        return annotation is not None and not (
-            inspect.isclass(annotation) and issubclass(annotation, BaseModel)
-        )
+        return annotation is not None
 
     async def resolve(
         self, request: Request, container: Container, name: str, annotation: Any
@@ -38,41 +29,3 @@ class DishkaResolver:
             return container.get(annotation)
         except GraphMissingFactoryError:
             return None  # Ou lever une exception spécifique si requis
-
-
-class PydanticResolver:
-    def can_resolve(self, name: str, annotation: Any) -> bool:
-        return inspect.isclass(annotation) and issubclass(annotation, BaseModel)
-
-    async def resolve(
-        self, request: Request, container: Container, name: str, annotation: Any
-    ) -> Any:
-        request_data = {}
-        matched = False
-        if issubclass(annotation, Params):
-            request_data.update(request.path_params)
-            matched = True
-        if issubclass(annotation, QS):
-            request_data.update(request.query_params)
-            matched = True
-        if (
-            issubclass(annotation, Body)
-            and request.headers.get("content-type") == "application/json"
-        ):
-            # try:
-            request_data.update(await request.json())
-            matched = True
-        # except json.JSONDecodeError:
-
-        if not matched:
-            request_data = {**request.path_params, **request.query_params}
-
-            if request.headers.get("content-type") == "application/json":
-                try:
-                    request_data.update(await request.json())
-                except json.JSONDecodeError:
-                    pass
-
-        print(request_data)
-        # Laisse Pydantic lever la ValidationError naturellement
-        return annotation(**request_data)
